@@ -9,7 +9,7 @@ import hashlib
 import pprint
 import requests
 
-API_ENDPOINT = 'https://cloud-api.yandex.net/v1/disk/public/resources/{}?public_key={}'
+API_ENDPOINT = 'https://cloud-api.yandex.net/v1/disk/public/resources/?public_key={}&path=/{}'
 
 
 def md5sum(filename):
@@ -33,17 +33,23 @@ def check_and_download_file(url, path, size, checksum, dry):
             shutil.copyfileobj(r.raw, f)
 
 
-def download_directory(url, save_path, dry):
-    pathlib.Path(save_path).mkdir(parents=True, exist_ok=True)
-    items = requests.get(API_ENDPOINT.format('', url)).json()['_embedded']['items']
+def download_directory(dl_root_path, public_key, src_path, dry):
+    cur_path = os.path.join(dl_root_path, src_path)
+    pathlib.Path(cur_path).mkdir(parents=True, exist_ok=True)
+    jsn = requests.get(API_ENDPOINT.format(public_key, src_path)).json()
+    try:
+        items = jsn['_embedded']['items']
+    except KeyError:
+        pprint.pprint(jsn)
+        return
     for i in items:
-        # pprint.pprint(i)
-        new_path = os.path.join(save_path, i['name'])
         if 'file' in i:
-            check_and_download_file(i['file'], new_path, i['size'], i['md5'], dry)
+            file_save_path = os.path.join(cur_path, i['name'])
+            check_and_download_file(i['file'], file_save_path, i['size'], i['md5'], dry)
         else:
-            print('entering folder {}'.format(new_path))
-            download_directory(i['public_url'], new_path, dry)
+            subdir_path = os.path.join(src_path, i['name'])
+            print('entering folder {}'.format(subdir_path))
+            download_directory(dl_root_path, public_key, subdir_path, dry)
 
 
 parser = argparse.ArgumentParser(description='Yandex.Disk downloader.')
@@ -52,4 +58,4 @@ parser.add_argument('-o', dest='output_path', default='output')
 parser.add_argument('--dry', action='store_const', const=True, default=False)
 args = parser.parse_args()
 
-download_directory(args.url, args.output_path, args.dry)
+download_directory(args.output_path, args.url, '', args.dry)
