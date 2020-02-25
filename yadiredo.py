@@ -36,7 +36,7 @@ class Yadiredo:
     def check_local_file(self, target_path, size, checksum):
         if os.path.isfile(target_path):
             if size == os.path.getsize(target_path):
-                if checksum == self.md5sum(target_path):
+                if not self.verify_checksums or checksum == self.md5sum(target_path):
                     return True
                 else:
                     log.warning('checksum mismatch')
